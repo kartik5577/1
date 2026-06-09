@@ -1,0 +1,6 @@
+{
+  "name": "Vectonix Classes",
+  "description": "Elite High-End Preparation Platform featuring secured live interactions, advanced curriculum management, and multi-tier student access controls.",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

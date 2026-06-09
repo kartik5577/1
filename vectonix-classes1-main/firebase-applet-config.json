@@ -1,0 +1,10 @@
+{
+  "projectId": "vectonix-portal",
+  "appId": "1:874759360893:web:6c86ce2f93d83cbb6f3c14",
+  "apiKey": "AIzaSyDcRKvjNmF_IyTbwdOF7SGnaxtmD8WgLlA",
+  "authDomain": "vectonix-portal.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "vectonix-portal.firebasestorage.app",
+  "messagingSenderId": "874759360893",
+  "measurementId": "G-QELXY34Q83"
+}

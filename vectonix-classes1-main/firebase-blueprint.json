@@ -1,0 +1,346 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Full name of the user" },
+        "email": { "type": "string", "format": "email", "description": "Email address" },
+        "mobile": { "type": "string", "description": "10-digit mobile number with +91" },
+        "dob": { "type": "string", "format": "date", "description": "Date of birth (YYYY-MM-DD)" },
+        "role": { "type": "string", "enum": ["student", "admin"], "description": "User role" },
+        "purchasedItems": { "type": "array", "items": { "type": "string" }, "description": "List of IDs of purchased courses/notes" },
+        "sessionId": { "type": "string", "description": "Unique session ID for single-device login" }
+      },
+      "required": ["uid", "name", "role"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "Educational course details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "discountPrice": { "type": "number" },
+        "thumbnail": { "type": "string", "format": "uri" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "price"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Subject within a course",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "courseId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["courseId", "title"]
+    },
+    "Note": {
+      "title": "Note",
+      "description": "Educational notebooks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "courseId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "coverImage": { "type": "string", "format": "uri" },
+        "price": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "courseId", "subjectId"]
+    },
+    "Unit": {
+      "title": "Unit",
+      "description": "Unit within a study note",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "noteId": { "type": "string" },
+        "title": { "type": "string" },
+        "price": { "type": "number" },
+        "discountPrice": { "type": "number" },
+        "isFree": { "type": "boolean" },
+        "order": { "type": "number" }
+      },
+      "required": ["noteId", "title"]
+    },
+    "Chapter": {
+      "title": "Chapter",
+      "description": "Chapter within a unit",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "unitId": { "type": "string" },
+        "title": { "type": "string" },
+        "order": { "type": "number" },
+        "pdfUrl": { "type": "string", "format": "uri" },
+        "previewImages": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["unitId", "title"]
+    },
+    "Lecture": {
+      "title": "Lecture",
+      "description": "Recorded video lectures",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "courseId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "videoUrl": { "type": "string", "format": "uri" },
+        "isComingSoon": { "type": "boolean" }
+      },
+      "required": ["title", "courseId", "subjectId"]
+    },
+    "LiveClass": {
+      "title": "LiveClass",
+      "description": "Scheduled live online classes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "courseId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "status": { "type": "string", "enum": ["upcoming", "live", "completed"] },
+        "price": { "type": "number" },
+        "discountPrice": { "type": "number" },
+        "isFree": { "type": "boolean" },
+        "isFeatured": { "type": "boolean" },
+        "isInternalRoom": { "type": "boolean" },
+        "scheduledAt": { "type": "string", "format": "date-time" },
+        "type": { "type": "string" },
+        "isStarted": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "courseId", "subjectId", "scheduledAt"]
+    },
+    "Sale": {
+      "title": "Sale",
+      "description": "Transaction records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "itemId": { "type": "string" },
+        "itemType": { "type": "string", "enum": ["course", "note", "lecture", "live", "unit"] },
+        "amount": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "paymentId": { "type": "string" },
+        "orderId": { "type": "string" }
+      },
+      "required": ["userId", "itemId", "amount", "timestamp", "paymentId"]
+    },
+    "LiveMessage": {
+      "title": "LiveMessage",
+      "description": "Real-time chat message in a live room",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "message": { "type": "string" },
+        "fileUrl": { "type": "string", "format": "uri" },
+        "fileType": { "type": "string", "enum": ["image", "pdf", "audio", "video"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "role": { "type": "string", "enum": ["student", "admin"] }
+      },
+      "required": ["userId", "userName", "timestamp"]
+    },
+    "Banner": {
+      "title": "Banner",
+      "description": "Hero section banner details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "img": { "type": "string", "format": "uri" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "buttonText": { "type": "string" },
+        "link": { "type": "string" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["img", "title"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Global application settings",
+      "type": "object",
+      "properties": {
+        "logoUrl": { "type": "string", "format": "uri", "description": "URL of the application logo" },
+        "appName": { "type": "string", "description": "Name of the application" },
+        "supportEmail": { "type": "string", "format": "email" },
+        "supportPhone": { "type": "string" },
+        "whatsappNumber": { "type": "string" },
+        "youtubeUrl": { "type": "string", "format": "uri" },
+        "instagramUrl": { "type": "string", "format": "uri" },
+        "telegramUrl": { "type": "string", "format": "uri" },
+        "studentCountLabel": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["appName"]
+    },
+    "Notice": {
+      "title": "Notice",
+      "description": "Announcements and news updates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "attachmentUrl": { "type": "string", "format": "uri" },
+        "attachmentName": { "type": "string" },
+        "attachmentType": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "type": { "type": "string", "enum": ["news", "announcement", "update"] }
+      },
+      "required": ["title", "content", "createdAt"]
+    },
+    "Promotion": {
+      "title": "Promotion",
+      "description": "Offers, Discounts, and special Announcements",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string", "enum": ["offer", "discount", "announcement"] },
+        "imgUrl": { "type": "string", "format": "uri" },
+        "link": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "expiryDate": { "type": "string", "format": "date-time" },
+        "couponCode": { "type": "string", "description": "Unique code for redemption" },
+        "discountType": { "type": "string", "enum": ["percentage", "fixed"], "description": "Type of discount" },
+        "discountValue": { "type": "number", "description": "Value of the discount" },
+        "applicableProducts": { "type": "array", "items": { "type": "string" }, "description": "IDs of applicable products. Empty for all." },
+        "maxUsage": { "type": "number", "description": "Maximum number of times this coupon can be used" },
+        "usageCount": { "type": "number", "description": "Current number of times used" }
+      },
+      "required": ["title", "type", "isActive", "createdAt"]
+    },
+    "Homepage": {
+      "title": "Homepage",
+      "description": "Complete configuration for the homepage content",
+      "type": "object",
+      "properties": {
+        "heroTitle": { "type": "string" },
+        "heroSubtitle": { "type": "string" },
+        "heroVideoId": { "type": "string" },
+        "heroImage": { "type": "string" },
+        "missionTitle": { "type": "string" },
+        "missionSubtitle": { "type": "string" },
+        "missionDescription": { "type": "string" },
+        "missionPoints": { "type": "array", "items": { "type": "string" } },
+        "missionImage": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "contactPhone": { "type": "string" },
+        "contactLocation": { "type": "string" },
+        "reviews": { 
+          "type": "array", 
+          "items": { 
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "role": { "type": "string" },
+              "content": { "type": "string" },
+              "rating": { "type": "number" }
+            }
+          } 
+        }
+      }
+    },
+    "Enquiry": {
+      "title": "Enquiry",
+      "description": "Student message from contact form",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "mobile": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["new", "read", "replied"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "mobile", "message", "createdAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Student course review/testimonial",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhoto": { "type": "string" },
+        "rating": { "type": "number", "minimum": 1, "maximum": 5 },
+        "content": { "type": "string" },
+        "courseId": { "type": "string", "description": "Optional course association" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "rating", "content", "status", "createdAt"]
+    },
+    "Cart": {
+      "title": "Cart",
+      "description": "User shopping cart items",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": "string" },
+              "price": { "type": "number" },
+              "discountPrice": { "type": "number" },
+              "type": { "type": "string", "enum": ["course", "note", "lecture", "live", "unit"] },
+              "coverImage": { "type": "string", "format": "uri" },
+              "courseId": { "type": "string" },
+              "subject": { "type": "string" },
+              "gstPercent": { "type": "number" }
+            },
+            "required": ["id", "title", "price", "type"]
+          }
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["items"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles" },
+    "/carts/{userId}": { "schema": "Cart", "description": "User shopping carts" },
+    "/courses/{courseId}": { "schema": "Course", "description": "Course catalog" },
+    "/subjects/{subjectId}": { "schema": "Subject", "description": "Subjects belonging to courses" },
+    "/notes/{noteId}": { "schema": "Note", "description": "Educational notebooks" },
+    "/units/{unitId}": { "schema": "Unit", "description": "Units within a study note" },
+    "/chapters/{chapterId}": { "schema": "Chapter", "description": "Chapters within a unit" },
+    "/lectures/{lectureId}": { "schema": "Lecture", "description": "Recorded lectures" },
+    "/liveClasses/{classId}": { "schema": "LiveClass", "description": "Live class schedule" },
+    "/liveClasses/{classId}/chat/{messageId}": { "schema": "LiveMessage", "description": "Messages for a specific live session" },
+    "/banners/{bannerId}": { "schema": "Banner", "description": "Homepage hero banners" },
+    "/sales/{saleId}": { "schema": "Sale", "description": "Sales records" },
+    "/settings/{settingId}": { "schema": "Settings", "description": "Global app settings" },
+    "/notices/{noticeId}": { "schema": "Notice", "description": "Global announcements and news" },
+    "/promotions/{id}": { "schema": "Promotion", "description": "Special offers and discounts" },
+    "/homepage/config": { "schema": "Homepage", "description": "Homepage dynamic content" },
+    "/enquiries/{id}": { "schema": "Enquiry", "description": "Student contact enquiries" },
+    "/reviews/{id}": { "schema": "Review", "description": "Student testimonials" }
+  }
+}

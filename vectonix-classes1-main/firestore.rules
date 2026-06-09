@@ -1,0 +1,301 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ==========================================
+    // 3. PRIMITIVE DEFINITIONS (GLOBAL HELPERS)
+    // ==========================================
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isRestricted() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('restricted', false) == true;
+    }
+
+    function isActiveUser() {
+      return isSignedIn() && !isRestricted();
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && 
+             'email' in request.auth.token && 
+             request.auth.token.email == 'vectonixclasses@gmail.com';
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function hasAccess(itemId, parentCourseId) {
+      return isAdmin() || (
+        isActiveUser() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('purchasedItems', []).hasAny([itemId]) ||
+          (parentCourseId != null && parentCourseId != "" && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('purchasedItems', []).hasAny([parentCourseId]))
+        )
+      );
+    }
+
+    function getUnitNoteId(unitId) {
+      return (unitId != null && unitId != "" && exists(/databases/$(database)/documents/units/$(unitId))) ? 
+             get(/databases/$(database)/documents/units/$(unitId)).data.get('noteId', '') : '';
+    }
+
+    function getNoteCourseId(noteId) {
+      return (noteId != null && noteId != "" && exists(/databases/$(database)/documents/notes/$(noteId))) ? 
+             get(/databases/$(database)/documents/notes/$(noteId)).data.get('courseId', '') : '';
+    }
+
+    function getChapterUnitId(chapterId) {
+      return (chapterId != null && chapterId != "" && exists(/databases/$(database)/documents/chapters/$(chapterId))) ? 
+             get(/databases/$(database)/documents/chapters/$(chapterId)).data.get('unitId', '') : '';
+    }
+
+    function isUnitFree(unitId) {
+      return unitId != null && unitId != "" && 
+             exists(/databases/$(database)/documents/units/$(unitId)) && 
+             get(/databases/$(database)/documents/units/$(unitId)).data.get('isFree', false) == true;
+    }
+
+    function isNoteFree(noteId) {
+      return noteId != null && noteId != "" && 
+             exists(/databases/$(database)/documents/notes/$(noteId)) && 
+             get(/databases/$(database)/documents/notes/$(noteId)).data.get('isFree', false) == true;
+    }
+
+    // ==========================================
+    // 0. GLOBAL SAFETY NET
+    // ==========================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==========================================
+    // ENTITY RULES
+    // ==========================================
+
+    // 1. USERS COLLECTION
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.keys().hasAll(['uid']) &&
+               data.uid == request.auth.uid &&
+               data.uid is string && data.uid.size() < 128 &&
+               (!('name' in data) || (data.name is string && data.name.size() > 0 && data.name.size() < 100)) &&
+               (!('role' in data) || data.role in ['student', 'admin']) &&
+               (!('restricted' in data) || data.restricted is bool);
+      }
+
+      allow list: if isAdmin() || (
+        // Allow unauthenticated mobile check for OTP flow
+        request.query.limit <= 1
+      );
+      
+      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
+      
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && 
+                    (incoming().get('role', 'student') == 'student' || isAdmin()) && 
+                    incoming().get('restricted', false) == false;
+      
+      allow update: if (isAdmin() && isValidUser(incoming())) || (
+        isSignedIn() && isOwner(userId) && 
+        existing().get('restricted', false) != true &&
+        isValidUser(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['uid', 'role', 'restricted', 'name', 'email', 'mobile', 'dob', 'photoUrl', 'sessionId', 'updatedAt', 'purchasedItems', 'grade', 'profileCompleted', 'lastActive', 'address']) &&
+        incoming().uid == existing().uid &&
+        incoming().get('role', 'student') == existing().get('role', 'student') &&
+        incoming().get('restricted', false) == existing().get('restricted', false)
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    // 2. COURSES & METADATA
+    match /courses/{courseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /subjects/{subjectId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 3. STUDY NOTES & UNITS
+    match /notes/{noteId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /secure/content {
+        allow read: if isAdmin() || (
+          isActiveUser() && (
+            isNoteFree(noteId) ||
+            hasAccess(noteId, getNoteCourseId(noteId))
+          )
+        );
+        allow write: if isAdmin();
+      }
+    }
+
+    match /units/{unitId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /secure/content {
+        allow read: if isAdmin() || (
+          isActiveUser() && (
+            isUnitFree(unitId) ||
+            isNoteFree(getUnitNoteId(unitId)) ||
+            hasAccess(unitId, '') ||
+            (getUnitNoteId(unitId) != '' && hasAccess(getUnitNoteId(unitId), getNoteCourseId(getUnitNoteId(unitId))))
+          )
+        );
+        allow write: if isAdmin();
+      }
+    }
+
+    match /chapters/{chapterId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /secure/content {
+        allow read: if isAdmin() || (
+          isActiveUser() && (
+            isUnitFree(getChapterUnitId(chapterId)) ||
+            isNoteFree(getUnitNoteId(getChapterUnitId(chapterId))) ||
+            (getChapterUnitId(chapterId) != '' && hasAccess(getChapterUnitId(chapterId), '')) ||
+            (getUnitNoteId(getChapterUnitId(chapterId)) != '' && hasAccess(getUnitNoteId(getChapterUnitId(chapterId)), getNoteCourseId(getUnitNoteId(getChapterUnitId(chapterId)))))
+          )
+        );
+        allow write: if isAdmin();
+      }
+    }
+
+    // 4. LECTURES
+    match /lectures/{lectureId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /secure/content {
+        allow read: if isAdmin() || (
+          isActiveUser() && (
+            get(/databases/$(database)/documents/lectures/$(lectureId)).data.get('isFree', false) == true ||
+            hasAccess(lectureId, get(/databases/$(database)/documents/lectures/$(lectureId)).data.get('courseId', ''))
+          )
+        );
+        allow write: if isAdmin();
+      }
+    }
+
+    // 5. LIVE CLASSES
+    match /liveClasses/{classId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /secure/content {
+        allow read: if isAdmin() || (
+          isActiveUser() && (
+            get(/databases/$(database)/documents/liveClasses/$(classId)).data.get('isFree', false) == true ||
+            hasAccess(classId, get(/databases/$(database)/documents/liveClasses/$(classId)).data.get('courseId', ''))
+          )
+        );
+        allow write: if isAdmin();
+      }
+
+      match /chat/{messageId} {
+        allow read: if isAdmin() || (
+          isActiveUser() && (
+            hasAccess(classId, get(/databases/$(database)/documents/liveClasses/$(classId)).data.get('courseId', '')) ||
+            get(/databases/$(database)/documents/liveClasses/$(classId)).data.get('isFree', false) == true
+          )
+        );
+        allow create: if isActiveUser() && 
+                      incoming().userId == request.auth.uid &&
+                      incoming().message.size() <= 1000 &&
+                      (
+                        isAdmin() || (
+                          hasAccess(classId, get(/databases/$(database)/documents/liveClasses/$(classId)).data.get('courseId', '')) ||
+                          get(/databases/$(database)/documents/liveClasses/$(classId)).data.get('isFree', false) == true
+                        )
+                      );
+      }
+    }
+
+    // 6. SALES
+    match /sales/{saleId} {
+      function isValidSale(data) {
+        return data.keys().hasAll(['userId', 'amount', 'itemId', 'paymentId', 'itemType', 'timestamp', 'orderId']) &&
+               data.userId == request.auth.uid &&
+               data.amount >= 0 &&
+               data.itemType in ['course', 'note', 'lecture', 'live', 'unit', 'unknown'];
+      }
+      
+      allow list, get: if isAdmin() || (isActiveUser() && resource.data.userId == request.auth.uid);
+      allow create: if isActiveUser() && isValidSale(incoming());
+      allow update, delete: if isAdmin();
+    }
+
+    // 7. GLOBAL COMPONENTS
+    match /banners/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /notices/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /promotions/{id} { 
+      allow read: if true; 
+      allow write: if isAdmin(); 
+      allow update: if isActiveUser() && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['usageCount']) &&
+                    incoming().usageCount == existing().usageCount + 1;
+    }
+    match /settings/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /homepage/config { allow read: if true; allow write: if isAdmin(); }
+    
+    match /enquiries/{enquiryId} {
+      function isValidEnquiry(data) {
+        return data.keys().hasAll(['name', 'email', 'mobile', 'message', 'createdAt']) &&
+               data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+               data.email is string && data.email.size() > 0 && data.email.size() < 100 &&
+               data.mobile is string && data.mobile.size() >= 10 &&
+               data.message is string && data.message.size() > 0 && data.message.size() < 2000;
+      }
+      allow create: if isValidEnquiry(incoming());
+      allow read, delete: if isAdmin();
+    }
+
+    match /reviews/{reviewId} {
+      function isValidReview(data) {
+        return data.keys().hasAll(['userId', 'userName', 'rating', 'content', 'status', 'createdAt']) &&
+               data.userId == request.auth.uid &&
+               data.userName is string && data.userName.size() < 100 &&
+               data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+               data.status in ['pending', 'approved', 'rejected'];
+      }
+      allow list: if resource.data.status == 'approved' || isAdmin();
+      allow get: if resource.data.status == 'approved' || isAdmin();
+      allow create: if isActiveUser() && 
+                    incoming().userId == request.auth.uid && 
+                    incoming().status == 'pending' && 
+                    isValidReview(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /carts/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+  }
+}
+

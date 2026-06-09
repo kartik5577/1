@@ -1,0 +1,20 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/proxy-pdf",
+      "destination": "/api/proxy-pdf.js"
+    },
+    {
+      "source": "/api/create-order",
+      "destination": "/api/create-order.js"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/((?!api|.*\\.[a-zA-Z0-9]+$).*)" ,
+      "destination": "/index.html"
+    }
+  ]
+}

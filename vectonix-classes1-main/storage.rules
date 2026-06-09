@@ -1,0 +1,138 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // ==========================================
+    // 1. CORE AUTHENTICATION PRIMITIVES
+    // ==========================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && 
+             'email' in request.auth.token && 
+             request.auth.token.email == "vectonixclasses@gmail.com";
+    }
+
+    // Check if the user is suspended or restricted in the centralized Firestore users system
+    function isRestricted() {
+      return firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) && 
+             firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('restricted', false) == true;
+    }
+
+    function isActiveUser() {
+      return isSignedIn() && !isRestricted();
+    }
+
+    // Assess if an active user has direct access to a purchased itemId in their user record
+    function userHasPurchased(itemId) {
+      return firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) && 
+             firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('purchasedItems', []).hasAny([itemId]);
+    }
+
+    // Fetch related resource identifiers cleanly to avoid malformed nested GCS-to-Firestore path literals
+    function getUnitNoteId(unitId) {
+      return firestore.exists(/databases/(default)/documents/units/$(unitId)) ? 
+             firestore.get(/databases/(default)/documents/units/$(unitId)).data.get('noteId', '') : '';
+    }
+
+    function getNoteCourseId(noteId) {
+      return firestore.exists(/databases/(default)/documents/notes/$(noteId)) ? 
+             firestore.get(/databases/(default)/documents/notes/$(noteId)).data.get('courseId', '') : '';
+    }
+
+    function isUnitFree(unitId) {
+      return firestore.exists(/databases/(default)/documents/units/$(unitId)) && 
+             firestore.get(/databases/(default)/documents/units/$(unitId)).data.get('isFree', false) == true;
+    }
+
+    function isNoteFree(noteId) {
+      return firestore.exists(/databases/(default)/documents/notes/$(noteId)) && 
+             firestore.get(/databases/(default)/documents/notes/$(noteId)).data.get('isFree', false) == true;
+    }
+
+    // ==========================================
+    // 2. PROFILE PICTURES STORAGE
+    // ==========================================
+    match /profiles/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    }
+
+    // ==========================================
+    // 3. SECURE EDUCATIONAL MATERIALS (PDF PRESETS)
+    // ==========================================
+    
+    // Protect Unit level materials (using fileName=** to correctly handle multi-segment subpath preview images)
+    match /units/{noteId}/{fileName=**} {
+      allow write: if isAdmin();
+      allow read: if isAdmin() || (
+        // For actual secure lesson plans, textbook sheets and manuals
+        fileName.matches('(?i).*\\.pdf$') ? (
+          isActiveUser() && (
+            // Note or course is free
+            isNoteFree(noteId) ||
+            // User bought note directly
+            userHasPurchased(noteId) ||
+            // User bought the course that encapsulates this note
+            userHasPurchased(getNoteCourseId(noteId))
+          )
+        ) : true // Allow non-pdf (covers, promotional unit assets, preview snapshots) to remain open
+      );
+    }
+
+    // Protect Chapter level materials (using fileName=** to correctly handle multi-segment subpath preview images)
+    match /chapters/{unitId}/{fileName=**} {
+      allow write: if isAdmin();
+      allow read: if isAdmin() || (
+        fileName.matches('(?i).*\\.pdf$') ? (
+          isActiveUser() && (
+            // 1. Is unit free?
+            isUnitFree(unitId) ||
+            
+            // 2. Is note free?
+            isNoteFree(getUnitNoteId(unitId)) ||
+            
+            // 3. Has user purchased unit?
+            userHasPurchased(unitId) ||
+            
+            // 4. Has user purchased note?
+            userHasPurchased(getUnitNoteId(unitId)) ||
+            
+            // 5. Has user purchased overall class course that embeds this note?
+            userHasPurchased(getNoteCourseId(getUnitNoteId(unitId)))
+          )
+        ) : true // Allow non-pdf files (cover, previews, banners and chapter images) to load instantly
+      );
+    }
+
+    // ==========================================
+    // 4. LIVE CHAT DISCUSSIONS Attachments
+    // ==========================================
+    match /live_chats/{classId}/{fileName} {
+      allow read, write: if isActiveUser();
+    }
+
+    // ==========================================
+    // 5. OTHER DIRECTORIES & PUBLIC GENERAL ASSETS
+    // ==========================================
+    match /banners/{allPaths=**} { allow read: if true; allow write: if isAdmin(); }
+    match /promotions/{allPaths=**} { allow read: if true; allow write: if isAdmin(); }
+    match /notebooks/{allPaths=**} { allow read: if true; allow write: if isAdmin(); }
+    match /lectures/{allPaths=**} { allow read: if true; allow write: if isAdmin(); }
+    match /notices/{allPaths=**} { allow read: if true; allow write: if isAdmin(); }
+    match /branding/{allPaths=**} { allow read: if true; allow write: if isAdmin(); }
+    match /thumbnails/{allPaths=**} { allow read: if true; allow write: if isAdmin(); }
+    match /liveClasses/{allPaths=**} { allow read: if true; allow write: if isAdmin(); }
+
+    // ==========================================
+    // 6. GENERAL OPT-OUT / GLOBAL FALLBACK
+    // ==========================================
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
